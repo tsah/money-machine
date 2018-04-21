@@ -7,7 +7,7 @@ lazy val root = (project in file(".")).
       scalaVersion := "2.12.4",
       version      := "0.1.0-SNAPSHOT"
     )),
-    name := "excel-reader",
+    name := "money-machine",
     libraryDependencies ++= Seq(
       scalaTest % Test,
       "org.apache.poi" % "poi-ooxml" % "3.9"

@@ -125,7 +125,6 @@ object BankFileParser {
       case Failure(ex) =>
         ex.printStackTrace()
         println(s"Failed on line: $line")
-        throw ex
         None
     }
 

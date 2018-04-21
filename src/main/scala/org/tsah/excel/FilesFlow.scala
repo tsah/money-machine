@@ -9,8 +9,27 @@ import scala.language.postfixOps
 
 object FilesFlow {
 
+  val BankDir = "bank"
+  val CreditCardsDir = "credit-cards"
+  val TransactionsFile = "all-transactions.csv"
+
+  def setUpDir(dirName: String): Unit = {
+    val dir = new File(dirName)
+    if (!dir.exists()) {
+      dir.mkdir()
+    }
+    val bankDir = new File(dir, BankDir)
+    if (!bankDir.exists()) {
+      bankDir.mkdir()
+    }
+    val creditCardsDir = new File(dir, CreditCardsDir)
+    if (!creditCardsDir.exists) {
+      creditCardsDir.mkdir()
+    }
+  }
+
   def loadBankLines(filesFolder: String): List[Transaction] = {
-    val bankFolder = new File(s"$filesFolder/bank")
+    val bankFolder = new File(s"$filesFolder/$BankDir")
     bankFolder.listFiles.flatMap { file =>
       val parsedBankFile = ExcelReader.getStringList(file.getPath)
       BankFileParser.parseListFromBankStatement(parsedBankFile)
@@ -24,7 +43,7 @@ object FilesFlow {
   }
 
   def loadCreditCardLines(filesFolder: String): List[Transaction] = {
-    val creditCardFolder = new File(s"$filesFolder/credit_cards")
+    val creditCardFolder = new File(s"$filesFolder/$CreditCardsDir")
     creditCardFolder.listFiles.flatMap { file =>
       val parsedCreditCardFile = ExcelReader.getStringList(file.getPath)
       BankFileParser.parseListFromCreditCardStatement(parsedCreditCardFile)
@@ -33,7 +52,7 @@ object FilesFlow {
   }
 
   def loadMainFileLines(filesFolder: String): List[Transaction] = {
-    val mainFile = new File(s"$filesFolder/all_transactions.csv")
+    val mainFile = new File(s"$filesFolder/$TransactionsFile")
     if (mainFile.exists) {
       val savedLines = Source.fromFile(mainFile).getLines().toList.map(_.split(",", -1).toVector)
       BankFileParser.loadFromSavedList(savedLines)
@@ -65,7 +84,7 @@ object FilesFlow {
     val mainFileLines = loadMainFileLines(filesFolder)
 
     val mergedLines  = mergeLines(mainFileLines, bankLines, creditCardLines).sortBy(_.transactionDate)
-    Transaction.saveToCsvFile(mergedLines, s"$filesFolder/all_transactions.csv")
+    Transaction.saveToCsvFile(mergedLines, s"$filesFolder/$TransactionsFile")
   }
 
 
