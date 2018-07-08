@@ -10,6 +10,7 @@ lazy val root = (project in file(".")).
     name := "money-machine",
     libraryDependencies ++= Seq(
       scalaTest % Test,
-      "org.apache.poi" % "poi-ooxml" % "3.9"
+      "org.apache.poi" % "poi-ooxml" % "3.9",
+      "com.lightbend.akka" %% "akka-stream-alpakka-elasticsearch" % "0.20"
     )
   )

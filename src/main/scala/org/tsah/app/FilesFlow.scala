@@ -1,6 +1,9 @@
-package org.tsah.excel
+package org.tsah.app
 
 import java.io.File
+
+import org.tsah.excel.ExcelReader
+import org.tsah.model.{BankFileParser, Transaction}
 
 import scala.annotation.tailrec
 import scala.io.{Source, StdIn}
