@@ -1,6 +1,20 @@
 package org.tsah.excel
 
+import java.util.Date
+
 import org.apache.poi.ss.usermodel.Cell
+
+
+object ExcelModel {
+  sealed trait ExcelCell
+  case object BlankCell extends ExcelCell
+  case object ErrorCell extends ExcelCell
+  case object FormulaCell extends ExcelCell
+  case class BooleanCell(bool: Boolean) extends ExcelCell
+  case class NumberCell(number: Double)
+  case class DateCell(date: Date)
+  case class StringCell(s: String)
+}
 
 object ExcelReader {
   def cellToString(cell: Cell): String = {
@@ -22,6 +36,7 @@ object ExcelReader {
   }
 
   def getStringList(fileName: String): List[Vector[String]] = {
+    println(s"parsing file $fileName")
     import scala.collection.JavaConverters._
 
     val fileIS = new java.io.FileInputStream(fileName)

@@ -33,6 +33,7 @@ object Transaction {
     pw.write(toWrite)
     pw.close()
   }
+
   val DefaultDict: Map[FieldType, Int] = List(
       Account,
       TransactionDate,
@@ -45,7 +46,8 @@ object Transaction {
     )
       .zipWithIndex
       .toMap
-  val MandatoryFields = Set(Account, TransactionDate, ChargeDate, Title)
+
+  val MandatoryFields: Set[FieldType] = Set(Account, TransactionDate, ChargeDate, Title)
 }
 
 sealed trait FieldType
@@ -57,7 +59,9 @@ case object Title extends FieldType
 case object PositiveBalance extends FieldType
 case object NegativeBalance extends FieldType
 case object TransactionDetails extends FieldType
-case object AssignedType extends FieldType
+case object AssignedType extends FieldType {
+  val Ignore = "ללא"
+}
 
 
 object BankFileParser {
@@ -88,13 +92,16 @@ object BankFileParser {
 
 
   val simpleDateFormat = new SimpleDateFormat("EEE MMM d HH:mm:ss zzz yyyy")
+  def tryParseDate(dateStr: String): Option[Date] = {
+    Try(simpleDateFormat parse dateStr).toOption
+  }
 
   def lineToTransaction(line: Vector[String], dict: Map[FieldType, Int]): Option[Transaction] = {
     val optionalTransaction = Try {
       val requiredFields = for {
         account <- dict get Account map line.apply
-        transactionDate <- dict get TransactionDate map line.apply map simpleDateFormat.parse
-        chargeDate <- dict get ChargeDate map line.apply map simpleDateFormat.parse
+        transactionDate <- dict get TransactionDate map line.apply flatMap tryParseDate
+        chargeDate <- dict get ChargeDate map line.apply flatMap tryParseDate
         title <- dict get Title map line.apply
       } yield (account, transactionDate, chargeDate, title)
 
@@ -195,10 +202,8 @@ object BankDicts {
   )
 }
 
-
-
 object FieldMapping {
-  val Mapping = Map(
+  val Mapping: Map[String, FieldType] = Map(
     "שם כרטיס" -> Account,
     "חיוב לתאריך" -> ChargeDate,
     "תאריך" -> TransactionDate,

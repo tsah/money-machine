@@ -1,9 +1,11 @@
 package org.tsah.app
 
-import java.io.File
+import java.io.{File, PrintWriter}
+import java.time.ZoneId
 
+import org.tsah.app.SplitToMonths.sumPaid
 import org.tsah.excel.ExcelReader
-import org.tsah.model.{BankFileParser, Transaction}
+import org.tsah.model.{AssignedType, BankFileParser, Transaction}
 
 import scala.annotation.tailrec
 import scala.io.{Source, StdIn}
@@ -156,7 +158,7 @@ object FilesFlow {
 
     val mergedLines = mergeLines(mainFileLines, bankLines, creditCardLines)
     val fixedLines = readMissingLinesFromUser(mergedLines)
-    Transaction.saveToCsvFile(fixedLines, s"$filesFolder/all_transactions.csv")
+    Transaction.saveToCsvFile(fixedLines, s"$filesFolder/$TransactionsFile")
   }
 
 }
@@ -164,4 +166,69 @@ object FilesFlow {
 
 object InteractiveMain extends App {
   FilesFlow.runInteractiveFlow("files")
+}
+
+object SplitToMonths extends App {
+  val filesFolder = new File("files")
+  val monthsDir = new File(filesFolder, "months")
+  if (!monthsDir.exists()) {
+    monthsDir.mkdir()
+  }
+
+  val mainFileLines = FilesFlow.loadMainFileLines("files")
+  val completed = mainFileLines.filter(_.assignedType.isDefined).filterNot(_.assignedType.exists(_ == AssignedType.Ignore))
+  val splitByMonths = completed.groupBy{transaction =>
+    val date = transaction.transactionDate
+    val localDate = date.toInstant.atZone(ZoneId.systemDefault()).toLocalDate
+    val year = localDate.getYear
+    val month = localDate.getMonthValue
+    s"$year-$month"
+  }
+  for ((dateKey, transactions) <- splitByMonths) {
+    val targetFileName = s"files/months/$dateKey.csv"
+    Transaction.saveToCsvFile(transactions, targetFileName)
+  }
+
+  def sumPaid(transactions: List[Transaction]) = transactions.foldLeft(0.0){(sum: Double, t: Transaction) => sum + t.positiveBalance - t.negativeBalance }
+
+  case class TypeAndSum(assignedType: String, sumPaid: Double) {
+    override def toString: String = s"$assignedType : $sumPaid"
+
+    val isPositive: Boolean = sumPaid > 0.0
+
+    val isNegative: Boolean = ! isPositive
+  }
+
+  for (monthData <- splitByMonths) {
+    val typesAndSums = monthData._2
+      .groupBy (_.assignedType)
+      .map{
+        case (Some(assignedType), transactions) => TypeAndSum(assignedType, sumPaid(transactions))
+      }
+
+    val positives = typesAndSums
+      .filter(_.isPositive)
+      .map(_.toString)
+      .mkString("\n")
+
+    val negatives = typesAndSums
+      .filter(_.isNegative)
+      .map(_.toString)
+      .mkString("\n")
+
+    val monthSummary =
+      s"""Positive:
+         |$positives
+         |
+         |Negative:
+         |$negatives
+         |
+         |Sum: ${sumPaid(completed)}
+         |""".stripMargin
+
+    val monthSummaryFileName = s"files/months/${monthData._1}-summary.txt"
+    val pw = new PrintWriter(monthSummaryFileName)
+    pw.print(monthSummary)
+    pw.close()
+  }
 }
