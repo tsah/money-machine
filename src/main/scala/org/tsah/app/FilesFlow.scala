@@ -3,9 +3,8 @@ package org.tsah.app
 import java.io.{File, PrintWriter}
 import java.time.ZoneId
 
-import org.tsah.app.SplitToMonths.sumPaid
-import org.tsah.excel.ExcelReader
-import org.tsah.model.{AssignedType, BankFileParser, Transaction}
+import org.tsah.model.Transaction.AssignedType
+import org.tsah.model.{BankFileParser, Transaction}
 
 import scala.annotation.tailrec
 import scala.io.{Source, StdIn}
@@ -34,26 +33,29 @@ object FilesFlow {
   }
 
   def loadBankLines(filesFolder: String): List[Transaction] = {
-    val bankFolder = new File(s"$filesFolder/$BankDir")
-    bankFolder.listFiles.flatMap { file =>
-      val parsedBankFile = ExcelReader.getStringList(file.getPath)
-      BankFileParser.parseListFromBankStatement(parsedBankFile)
-    }
-      .toList
-      .filterNot { transaction =>
-        transaction.title == "ישראכרט" ||
-        transaction.title == "כרטיסי אשראי ל" ||
-        transaction.title == """לאומי קארד בע""""
-      }
+//    val bankFolder = new File(s"$filesFolder/$BankDir")
+//    bankFolder.listFiles.flatMap { file =>
+//        val parsedBankFile = ExcelReader.getStringList(file.getPath)
+//        BankFileParser.parseListFromBankStatement(parsedBankFile)
+//      }
+//      .toList
+//      .filterNot { transaction =>
+//        transaction.title == "ישראכרט" ||
+//        transaction.title == "כרטיסי אשראי ל" ||
+//        transaction.title == """לאומי קארד בע""""
+//      }
+    List()
   }
 
   def loadCreditCardLines(filesFolder: String): List[Transaction] = {
-    val creditCardFolder = new File(s"$filesFolder/$CreditCardsDir")
-    creditCardFolder.listFiles.flatMap { file =>
-      val parsedCreditCardFile = ExcelReader.getStringList(file.getPath)
-      BankFileParser.parseListFromCreditCardStatement(parsedCreditCardFile)
-    }
-      .toList
+//    val creditCardFolder = new File(s"$filesFolder/$CreditCardsDir")
+//    creditCardFolder.listFiles.flatMap { file =>
+//      val parsedCreditCardFile = ExcelReader.getStringList(file.getPath)
+//      BankFileParser.parseListFromCreditCardStatement(parsedCreditCardFile)
+//      List()
+//    }
+//      .toList
+    List()
   }
 
   def loadMainFileLines(filesFolder: String): List[Transaction] = {

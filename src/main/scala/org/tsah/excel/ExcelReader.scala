@@ -2,7 +2,8 @@ package org.tsah.excel
 
 import java.util.Date
 
-import org.apache.poi.ss.usermodel.Cell
+import org.apache.poi.ss.usermodel.{Cell => PoiExcellCell}
+import org.tsah.excel.ExcelModel._
 
 
 object ExcelModel {
@@ -11,31 +12,35 @@ object ExcelModel {
   case object ErrorCell extends ExcelCell
   case object FormulaCell extends ExcelCell
   case class BooleanCell(bool: Boolean) extends ExcelCell
-  case class NumberCell(number: Double)
-  case class DateCell(date: Date)
-  case class StringCell(s: String)
+  case class NumberCell(number: Double) extends ExcelCell
+  case class DateCell(date: Date) extends ExcelCell
+  case class StringCell(s: String) extends ExcelCell
+
+  type ExcelLine = List[ExcelCell]
+  type ExcelSheet = List[ExcelLine]
 }
 
 object ExcelReader {
-  def cellToString(cell: Cell): String = {
-    import Cell._
+
+  def parseCell(cell: PoiExcellCell): ExcelCell = {
+    import PoiExcellCell._
 
     cell.getCellType match {
-      case CELL_TYPE_BLANK ⇒ ""
-      case CELL_TYPE_BOOLEAN ⇒ cell.getBooleanCellValue.toString
-      case CELL_TYPE_ERROR ⇒ "ERROR"
-      case CELL_TYPE_FORMULA ⇒ "FORMULA"
+      case CELL_TYPE_BLANK ⇒ BlankCell
+      case CELL_TYPE_BOOLEAN ⇒ BooleanCell(cell.getBooleanCellValue)
+      case CELL_TYPE_ERROR ⇒ ErrorCell
+      case CELL_TYPE_FORMULA ⇒ FormulaCell
       case CELL_TYPE_NUMERIC ⇒
         if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
-          cell.getDateCellValue.toString
+          DateCell(cell.getDateCellValue)
         } else {
-          cell.getNumericCellValue.toString
+          NumberCell(cell.getNumericCellValue)
         }
-      case CELL_TYPE_STRING ⇒ cell.getRichStringCellValue.getString
+      case CELL_TYPE_STRING ⇒ StringCell(cell.getRichStringCellValue.getString)
     }
   }
 
-  def getStringList(fileName: String): List[Vector[String]] = {
+  def loadExcelSheet(fileName: String): ExcelSheet = {
     println(s"parsing file $fileName")
     import scala.collection.JavaConverters._
 
@@ -49,20 +54,15 @@ object ExcelReader {
         row
           .cellIterator
           .asScala
-          .toVector
-          .map(cellToString)
+          .toList
+          .map(parseCell)
       }
-        .map(
-          _.map(
-            _.replaceAll(",", " ")
-          )
-        )
-        .toList
+      .toList
   }
 
 
   def printExcelFile(fileName: String): Unit = {
-    getStringList(fileName)
+    loadExcelSheet(fileName)
       .map(_.mkString(","))
       .foreach(println)
   }
