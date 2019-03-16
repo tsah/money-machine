@@ -52,7 +52,14 @@ class ExcelSheetParserSpec extends FlatSpec {
     val input = List(List(StringCell("Account"), StringCell("TransactionDate"), StringCell("ChargeDate"), StringCell("Title")))
     val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title)
     val output = new ExcelSheetParser(dict).parse(input)
-    assert(output == List(HeaderLine(List(Account, TransactionDate, ChargeDate, Title))))
+    assert(output == List(HeaderLine(List(Account, TransactionDate, ChargeDate, Title).map(Some.apply))))
+  }
+
+  it should "parse a good header line even if it contains irrelevant fields" in {
+    val input = sheet(line("Account", "TransactionDate", "ChargeDate" , "irrelevant", "Title"))
+    val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title)
+    val output = new ExcelSheetParser(dict).parse(input)
+    assert(output == List(HeaderLine(List(Some(Account), Some(TransactionDate), Some(ChargeDate),None, Some(Title)))))
   }
 
   it should "Fail to parse a short line after a good header line" in {
@@ -64,7 +71,7 @@ class ExcelSheetParserSpec extends FlatSpec {
     val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title, "PositiveBalance" -> PositiveBalance)
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
-      HeaderLine(List(Account, TransactionDate, ChargeDate, Title)),
+      HeaderLine(List(Account, TransactionDate, ChargeDate, Title).map(Some.apply)),
       LineParseFailed(shortLine))
     assert(output == expectedOutput)
   }
@@ -78,7 +85,7 @@ class ExcelSheetParserSpec extends FlatSpec {
     val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title, "PositiveBalance" -> PositiveBalance)
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
-      HeaderLine(List(Account, TransactionDate, ChargeDate, Title, PositiveBalance)),
+      HeaderLine(List(Account, TransactionDate, ChargeDate, Title, PositiveBalance).map(Some.apply)),
       TransactionParseFailed(badTransactionLine))
     assert(output == expectedOutput)
   }
@@ -93,8 +100,50 @@ class ExcelSheetParserSpec extends FlatSpec {
     val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title, "PositiveBalance" -> PositiveBalance)
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
-      HeaderLine(List(Account, TransactionDate, ChargeDate, Title, PositiveBalance)),
+      HeaderLine(List(Account, TransactionDate, ChargeDate, Title, PositiveBalance).map(Some.apply)),
       ParseSuccess(Transaction("account", someDate, someDate, "title", 1.0, 0.0, None, None).get)
+    )
+    assert(output == expectedOutput)
+  }
+
+  it should "Parse a good transaction line after a good header line with an irrelevant field" in {
+    val someDate = new Date()
+    val goodLine = line("account", someDate, someDate, "title", "irrelevant", 1.0)
+    val input = sheet(
+      line("Account", "TransactionDate", "ChargeDate", "Title","irrelevant", "PositiveBalance"),
+      goodLine
+    )
+    val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title, "PositiveBalance" -> PositiveBalance)
+    val output = new ExcelSheetParser(dict).parse(input)
+    val expectedOutput = List(
+      HeaderLine(List(Some(Account), Some(TransactionDate), Some(ChargeDate), Some(Title), None, Some(PositiveBalance))),
+      ParseSuccess(Transaction("account", someDate, someDate, "title", 1.0, 0.0, None, None).get)
+    )
+    assert(output == expectedOutput)
+  }
+
+  def expectedHeaderLine(goodHeader1: ExcelLine, dict: Map[String, FieldType]): HeaderLine = {
+    val fieldsList = goodHeader1
+      .collect { case StringCell(s) => s }
+      .map(dict.get)
+    HeaderLine(fieldsList)
+  }
+
+  it should "Parse good lines after each new header line" in {
+    val goodHeader1 = line("Account", "TransactionDate", "ChargeDate", "Title", "PositiveBalance")
+    val date = new Date()
+    val goodLine1 = line("account1", date, date, "title1", 1.1)
+    val goodHeader2 = line("Account", "TransactionDate", "ChargeDate", "Title", "NegativeBalance")
+    val goodLine2 = line("account2", date, date, "title2", 1.1)
+    val input = sheet(goodHeader1, goodLine1, goodHeader2, goodLine2)
+    val dict = Map("Account" -> Account, "TransactionDate" -> TransactionDate, "ChargeDate" -> ChargeDate, "Title" -> Title, "PositiveBalance" -> PositiveBalance, "NegativeBalance" -> NegativeBalance)
+
+    val output = new ExcelSheetParser(dict).parse(input)
+    val expectedOutput = List(
+      expectedHeaderLine(goodHeader1, dict),
+      ParseSuccess(Transaction("account1", date, date, "title1", 1.1, 0.0, None, None).get),
+      expectedHeaderLine(goodHeader2, dict),
+      ParseSuccess(Transaction("account2", date, date, "title2", 0.0, 1.1, None, None).get)
     )
     assert(output == expectedOutput)
   }

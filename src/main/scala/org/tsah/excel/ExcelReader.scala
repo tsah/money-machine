@@ -1,5 +1,6 @@
 package org.tsah.excel
 
+import java.text.SimpleDateFormat
 import java.util.Date
 
 import org.apache.poi.ss.usermodel.{Cell => PoiExcellCell}
@@ -18,6 +19,25 @@ object ExcelModel {
 
   type ExcelLine = List[ExcelCell]
   type ExcelSheet = List[ExcelLine]
+
+  def prettyPrintSheet(sheet: ExcelSheet): String =
+    sheet map prettyPrintLine mkString "\n"
+
+  def prettyPrintLine(line: ExcelLine): String =
+    line map prettyPrintCell mkString ", "
+
+  def prettyPrintCell(excelCell: ExcelCell): String = {
+    excelCell match {
+      case BlankCell => "BLANK"
+      case ErrorCell => "ERROR"
+      case FormulaCell => "FORMULA"
+      case BooleanCell(b) => b.toString
+      case NumberCell(n) => n.toString
+      case DateCell(d) => new SimpleDateFormat().format(d)
+      case StringCell(s) => s
+    }
+  }
+
 }
 
 object ExcelReader {

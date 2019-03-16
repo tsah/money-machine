@@ -3,8 +3,10 @@ package org.tsah.app
 import java.io.{File, PrintWriter}
 import java.time.ZoneId
 
+import org.tsah.excel.{ExcelModel, ExcelReader}
 import org.tsah.model.Transaction.AssignedType
 import org.tsah.model.{BankFileParser, Transaction}
+import org.tsah.parser.{Defaults, ExcelSheetParser}
 
 import scala.annotation.tailrec
 import scala.io.{Source, StdIn}
@@ -233,4 +235,11 @@ object SplitToMonths extends App {
     pw.print(monthSummary)
     pw.close()
   }
+}
+
+object NewParserMain extends App {
+  val s = ExcelReader.loadExcelSheet("/Users/tsah/dev/git/personal/money-machine/files/bank/excelNewTransactions.xlsx")
+  println(ExcelModel.prettyPrintSheet(s))
+  val p = new ExcelSheetParser(Defaults.Dict).parse(s)
+  println(ExcelSheetParser.detailedPrint(p))
 }

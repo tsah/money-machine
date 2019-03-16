@@ -1,5 +1,6 @@
 package org.tsah.parser
 
+import org.tsah.excel.ExcelModel
 import org.tsah.excel.ExcelModel._
 import org.tsah.model.Transaction
 import org.tsah.model.Transaction._
@@ -11,12 +12,10 @@ class ExcelSheetParser(fieldDict: Map[String, FieldType]) {
     val fields = line
       .collect {
         case s: StringCell => s
-      }.flatMap { stringCell =>
+      }.map { stringCell =>
         fieldDict.get(stringCell.s)
       }
-    if (fields.size != line.size) {
-      Left(HeaderLineParseFailed(line))
-    } else if (! Transaction.MandatoryFields.forall{fields.contains}) {
+    if (! Transaction.MandatoryFields.map(Some.apply).forall{fields.contains}) {
       Left(HeaderLineParseFailed(line))
     } else {
       Right(HeaderLine(fields))
@@ -29,7 +28,10 @@ class ExcelSheetParser(fieldDict: Map[String, FieldType]) {
   }
 
   def parseTransactionLine(transactionLine: ExcelLine, headerline: HeaderLine): ExcelParseResult = {
-    val asMap = headerline.header zip transactionLine toMap
+    val asMap = headerline.header
+      .zip(transactionLine)
+      .collect { case (Some(field), cell) => (field, cell) }
+      .toMap
     val possibleTransaction = for {
       account <- asMap.get(Account).collect{ case StringCell(s) => s }
       transactionDate <- asMap.get(TransactionDate).collect{ case DateCell(date) => date }
@@ -84,9 +86,19 @@ object ExcelSheetParser {
 
   sealed trait ExcelParseResult
   case class ParseSuccess(t: Transaction) extends ExcelParseResult
-  case class HeaderLine(header: List[FieldType]) extends ExcelParseResult
-  trait ParseError extends ExcelParseResult
+  case class HeaderLine(header: List[Option[FieldType]]) extends ExcelParseResult
+  sealed trait ParseError extends ExcelParseResult
   case class LineParseFailed(line: ExcelLine) extends ParseError
   case class HeaderLineParseFailed(line: ExcelLine) extends ParseError
   case class TransactionParseFailed(line: ExcelLine) extends ParseError
+
+  def detailedPrint(results: List[ExcelParseResult]): String = results.map(detailedPrint).mkString("\n")
+
+  def detailedPrint(result: ExcelParseResult): String = result match {
+    case ParseSuccess(t) => s"TRANSACTION: ${t.toCsvLine}"
+    case HeaderLine(h) => s"HEADER: ${h.map(_.toString).mkString(", ")}"
+    case LineParseFailed(l) => s"LINE FAILURE: ${ExcelModel.prettyPrintLine(l)}"
+    case HeaderLineParseFailed(l) => s"HEADER FAILURE: ${ExcelModel.prettyPrintLine(l)}"
+    case TransactionParseFailed(l) => s"TRANSACTION FAILURE: ${ExcelModel.prettyPrintLine(l)}"
+  }
 }
