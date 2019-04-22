@@ -15,7 +15,7 @@ class ExcelSheetParser(fieldDict: Map[String, FieldType]) {
       }.map { stringCell =>
         fieldDict.get(stringCell.s)
       }
-    if (! Transaction.MandatoryFields.map(Some.apply).forall{fields.contains}) {
+    if (!Transaction.MandatoryFields.map(Some.apply).forall{fields.contains}) {
       Left(HeaderLineParseFailed(line))
     } else {
       Right(HeaderLine(fields))
@@ -33,15 +33,15 @@ class ExcelSheetParser(fieldDict: Map[String, FieldType]) {
       .collect { case (Some(field), cell) => (field, cell) }
       .toMap
     val possibleTransaction = for {
-      account <- asMap.get(Account).collect{ case StringCell(s) => s }
       transactionDate <- asMap.get(TransactionDate).collect{ case DateCell(date) => date }
-      chargeDate <- asMap.get(ChargeDate).collect{ case DateCell(date) => date }
       title <- asMap.get(Title).collect{ case StringCell(s) => s }
     } yield {
       val positiveBalance = asMap.get(PositiveBalance).collect{ case NumberCell(number) => number }.getOrElse(0.0)
       val negativeBalance = asMap.get(NegativeBalance).collect{ case NumberCell(number) => number }.getOrElse(0.0)
       val details = asMap.get(TransactionDetails).collect{ case StringCell(s) => s }
       val assignedType = asMap.get(AssignedType).collect{ case StringCell(s) => s }
+      val chargeDate = asMap.get(ChargeDate).collect{ case DateCell(date) => date }
+      val account = asMap.get(Account).collect{ case StringCell(s) => s }.getOrElse("")
       Transaction(account, transactionDate, chargeDate, title, positiveBalance, negativeBalance, details, assignedType)
     }
     possibleTransaction.flatten match {
@@ -58,12 +58,10 @@ class ExcelSheetParser(fieldDict: Map[String, FieldType]) {
           case Left(parseFailed) => parseFailed::parse(tail, lastHeaderLine)
           case Right(newHeaderLine) => newHeaderLine::parse(tail, Some(newHeaderLine))
         }
-      case (l::tail, Some(headerLine)) if l.size < headerLine.header.size =>
-        LineParseFailed(l)::parse(tail, lastHeaderLine)
       case (l::tail, Some(headerLine)) =>
         parseTransactionLine(l, headerLine)::parse(tail, lastHeaderLine)
       case (l::tail, _) =>
-        LineParseFailed(l)::parse(tail, lastHeaderLine)
+        NoHeaderLine(l)::parse(tail, lastHeaderLine)
 
     }
   }
@@ -71,7 +69,7 @@ class ExcelSheetParser(fieldDict: Map[String, FieldType]) {
 
 
   def candidateHeaderLine(l: ExcelLine): Boolean = {
-    l.size >= Transaction.ManadatoryFieldsAmount && allStringCells(l)
+    l.size >= Transaction.MandatoryFieldsAmount && allStringCells(l)
   }
 
   def allStringCells(l: ExcelLine): Boolean = l.forall{
@@ -85,19 +83,21 @@ object ExcelSheetParser {
   def apply(): ExcelSheetParser = new ExcelSheetParser(Map())
 
   sealed trait ExcelParseResult
-  case class ParseSuccess(t: Transaction) extends ExcelParseResult
-  case class HeaderLine(header: List[Option[FieldType]]) extends ExcelParseResult
+  final case class ParseSuccess(t: Transaction) extends ExcelParseResult
+  final case class HeaderLine(header: List[Option[FieldType]]) extends ExcelParseResult
   sealed trait ParseError extends ExcelParseResult
-  case class LineParseFailed(line: ExcelLine) extends ParseError
-  case class HeaderLineParseFailed(line: ExcelLine) extends ParseError
-  case class TransactionParseFailed(line: ExcelLine) extends ParseError
+  final case class LineTooShort(line: ExcelLine, expectedLenght: Int) extends ParseError
+  final case class NoHeaderLine(line: ExcelLine) extends ParseError
+  final case class HeaderLineParseFailed(line: ExcelLine) extends ParseError
+  final case class TransactionParseFailed(line: ExcelLine) extends ParseError
 
   def detailedPrint(results: List[ExcelParseResult]): String = results.map(detailedPrint).mkString("\n")
 
   def detailedPrint(result: ExcelParseResult): String = result match {
     case ParseSuccess(t) => s"TRANSACTION: ${t.toCsvLine}"
     case HeaderLine(h) => s"HEADER: ${h.map(_.toString).mkString(", ")}"
-    case LineParseFailed(l) => s"LINE FAILURE: ${ExcelModel.prettyPrintLine(l)}"
+    case LineTooShort(line, expectedLenght) => s"LINE TOO SHORT: ${ExcelModel.prettyPrintLine(line)}, expected size: $expectedLenght"
+    case NoHeaderLine(line) => s"NO HEADER LINE: ${ExcelModel.prettyPrintLine(line)}"
     case HeaderLineParseFailed(l) => s"HEADER FAILURE: ${ExcelModel.prettyPrintLine(l)}"
     case TransactionParseFailed(l) => s"TRANSACTION FAILURE: ${ExcelModel.prettyPrintLine(l)}"
   }

@@ -1,10 +1,14 @@
 package org.tsah.excel
 
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.ss.usermodel.{Cell => PoiExcellCell}
 import org.tsah.excel.ExcelModel._
+
+import scala.util.Try
 
 
 object ExcelModel {
@@ -42,6 +46,8 @@ object ExcelModel {
 
 object ExcelReader {
 
+  val dateFormat = new SimpleDateFormat("d/M/y")
+
   def parseCell(cell: PoiExcellCell): ExcelCell = {
     import PoiExcellCell._
 
@@ -56,16 +62,25 @@ object ExcelReader {
         } else {
           NumberCell(cell.getNumericCellValue)
         }
-      case CELL_TYPE_STRING ⇒ StringCell(cell.getRichStringCellValue.getString)
+      case CELL_TYPE_STRING ⇒
+        val stringContent = cell.getRichStringCellValue.getString
+        Try(dateFormat.parse(stringContent))
+          .map(DateCell.apply)
+          .getOrElse(StringCell(stringContent))
     }
   }
 
-  def loadExcelSheet(fileName: String): ExcelSheet = {
-    println(s"parsing file $fileName")
+  def loadExcelSheet(file: File): ExcelSheet = {
+    println(s"parsing file ${file.getName}")
     import scala.collection.JavaConverters._
 
-    val fileIS = new java.io.FileInputStream(fileName)
-    val wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(fileIS)
+    val fileIS = new java.io.FileInputStream(file)
+    val wb = if (file.getName contains "xlsx") {
+      new org.apache.poi.xssf.usermodel.XSSFWorkbook(fileIS)
+    } else {
+      new HSSFWorkbook(fileIS)
+    }
+
     val worksheet = wb.getSheetAt(0)
 
     0.to(worksheet.getLastRowNum)
@@ -81,8 +96,8 @@ object ExcelReader {
   }
 
 
-  def printExcelFile(fileName: String): Unit = {
-    loadExcelSheet(fileName)
+  def printExcelFile(file: File): Unit = {
+    loadExcelSheet(file)
       .map(_.mkString(","))
       .foreach(println)
   }
@@ -94,5 +109,5 @@ object Main extends App {
 
   val fileName = args(0)
   val showLongLines = args(1).toBoolean
-  printExcelFile(fileName)
+  printExcelFile(new File(fileName))
 }

@@ -3,9 +3,11 @@ package org.tsah.app
 import java.io.{File, PrintWriter}
 import java.time.ZoneId
 
+import org.tsah.excel.ExcelModel.ExcelSheet
 import org.tsah.excel.{ExcelModel, ExcelReader}
 import org.tsah.model.Transaction.AssignedType
 import org.tsah.model.{BankFileParser, Transaction}
+import org.tsah.parser.ExcelSheetParser.ParseSuccess
 import org.tsah.parser.{Defaults, ExcelSheetParser}
 
 import scala.annotation.tailrec
@@ -60,10 +62,11 @@ object FilesFlow {
     List()
   }
 
-  def loadMainFileLines(filesFolder: String): List[Transaction] = {
-    val mainFile = new File(s"$filesFolder/$TransactionsFile")
+  def loadMainFileLines(mainFile: File): List[Transaction] = {
     if (mainFile.exists) {
-      val savedLines = Source.fromFile(mainFile).getLines().toList.map(_.split(",", -1).toVector)
+      val source = Source.fromFile(mainFile)
+      val savedLines = source.getLines().toList.map(_.split(",", -1).toVector)
+      source.close()
       BankFileParser.loadFromSavedList(savedLines)
     } else {
       List()
@@ -82,19 +85,18 @@ object FilesFlow {
     }
   }
 
-  def mergeLines(mainFileLines: List[Transaction], bankLines: List[Transaction], creditCardLines: List[Transaction]): List[Transaction] = {
-    val mergedBankLines = mergeToMainList(mainFileLines, bankLines)
-    mergeToMainList(mergedBankLines, creditCardLines)
+  def mergeLines(mainFileLines: List[Transaction], fromFiles: List[Transaction]): List[Transaction] = {
+    mergeToMainList(mainFileLines, fromFiles)
   }
 
-  def runFlow(filesFolder: String): Unit = {
-    val bankLines = loadBankLines(filesFolder)
-    val creditCardLines = loadCreditCardLines(filesFolder)
-    val mainFileLines = loadMainFileLines(filesFolder)
-
-    val mergedLines  = mergeLines(mainFileLines, bankLines, creditCardLines).sortBy(_.transactionDate)
-    Transaction.saveToCsvFile(mergedLines, s"$filesFolder/$TransactionsFile")
-  }
+//  def runFlow(filesFolder: String): Unit = {
+//    val bankLines = loadBankLines(filesFolder)
+//    val creditCardLines = loadCreditCardLines(filesFolder)
+//    val mainFileLines = loadMainFileLines(filesFolder)
+//
+//    val mergedLines  = mergeLines(mainFileLines, bankLines, creditCardLines).sortBy(_.transactionDate)
+//    Transaction.saveToCsvFile(mergedLines, s"$filesFolder/$TransactionsFile")
+//  }
 
 
   def readType(collectedTypes: Set[String]): String = {
@@ -155,22 +157,18 @@ object FilesFlow {
     res
   }
 
-  def runInteractiveFlow(filesFolder: String): Unit = {
-    val bankLines = loadBankLines(filesFolder)
-    val creditCardLines = loadCreditCardLines(filesFolder)
-    val mainFileLines = loadMainFileLines(filesFolder)
-
-    val mergedLines = mergeLines(mainFileLines, bankLines, creditCardLines)
-    val fixedLines = readMissingLinesFromUser(mergedLines)
-    Transaction.saveToCsvFile(fixedLines, s"$filesFolder/$TransactionsFile")
-  }
+//  def runInteractiveFlow(filesFolder: String): Unit = {
+//    val bankLines = loadBankLines(filesFolder)
+//    val creditCardLines = loadCreditCardLines(filesFolder)
+//    val mainFileLines = loadMainFileLines(filesFolder)
+//
+//    val mergedLines = mergeLines(mainFileLines, bankLines, creditCardLines)
+//    val fixedLines = readMissingLinesFromUser(mergedLines)
+//    Transaction.saveToCsvFile(fixedLines, s"$filesFolder/$TransactionsFile")
+//  }
 
 }
 
-
-object InteractiveMain extends App {
-  FilesFlow.runInteractiveFlow("files")
-}
 
 object SplitToMonths extends App {
   val filesFolder = new File("files")
@@ -179,7 +177,7 @@ object SplitToMonths extends App {
     monthsDir.mkdir()
   }
 
-  val mainFileLines = FilesFlow.loadMainFileLines("files")
+  val mainFileLines = FilesFlow.loadMainFileLines(new File("files/all_transactions.csv"))
   val completed = mainFileLines.filter(_.assignedType.isDefined).filterNot(_.assignedType.exists(_ == AssignedType.Ignore))
   val splitByMonths = completed.groupBy{transaction =>
     val date = transaction.transactionDate
@@ -189,8 +187,8 @@ object SplitToMonths extends App {
     s"$year-$month"
   }
   for ((dateKey, transactions) <- splitByMonths) {
-    val targetFileName = s"files/months/$dateKey.csv"
-    Transaction.saveToCsvFile(transactions, targetFileName)
+    val targetFile = new File(s"files/months/$dateKey.csv")
+    Transaction.saveToCsvFile(transactions, targetFile)
   }
 
   def sumPaid(transactions: List[Transaction]) = transactions.foldLeft(0.0){(sum: Double, t: Transaction) => sum + t.positiveBalance - t.negativeBalance }
@@ -238,8 +236,25 @@ object SplitToMonths extends App {
 }
 
 object NewParserMain extends App {
-  val s = ExcelReader.loadExcelSheet("/Users/tsah/dev/git/personal/money-machine/files/bank/excelNewTransactions.xlsx")
-  println(ExcelModel.prettyPrintSheet(s))
-  val p = new ExcelSheetParser(Defaults.Dict).parse(s)
-  println(ExcelSheetParser.detailedPrint(p))
+  val filesDir = new File("files")
+  val excelDir = new File(filesDir, "excels")
+  val resultFile = new File(filesDir, "all_transactions.csv")
+  if (!excelDir.exists()) {excelDir.mkdirs()}
+  if (!resultFile.exists()) { resultFile.createNewFile()}
+  println("Loading main file")
+  val savedTransactions = FilesFlow.loadMainFileLines(resultFile)
+  println(s"Loaded ${savedTransactions.size} transactions")
+  val parser = new ExcelSheetParser(Defaults.Dict)
+  val transactionsFromFiles = excelDir.listFiles()
+    .map(ExcelReader.loadExcelSheet)
+    .map(parser.parse)
+    .flatMap{ parserResult =>
+      println(s"File Result: \n ${ExcelSheetParser.detailedPrint(parserResult)}")
+      parserResult.collect{ case ParseSuccess(t) => t}
+    }
+    .toList
+  val allTransactions = FilesFlow.mergeLines(savedTransactions, transactionsFromFiles)
+  println(s"Writing ${allTransactions.size} transactions to file")
+  Transaction.saveToCsvFile(allTransactions, resultFile)
+  println("Done")
 }

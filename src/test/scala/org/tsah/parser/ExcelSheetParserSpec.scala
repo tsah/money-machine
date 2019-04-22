@@ -27,14 +27,14 @@ class ExcelSheetParserSpec extends FlatSpec {
   it should "produce parse errors for non empty lines if no header line is present" in {
     val input =
       List(
-        List(StringCell("a"), StringCell("b"), StringCell("c")),
+        List(StringCell("a"), StringCell("b")),
         List(StringCell("a"), NumberCell(1)),
         List(StringCell("a"), StringCell("b"), StringCell("c"), NumberCell(1))
       )
 
     val output = ExcelSheetParser().parse(input)
 
-    val expectedOutput = input.map(LineParseFailed(_))
+    val expectedOutput = input.map(NoHeaderLine(_))
     assert(expectedOutput == output)
   }
 
@@ -72,7 +72,7 @@ class ExcelSheetParserSpec extends FlatSpec {
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
       HeaderLine(List(Account, TransactionDate, ChargeDate, Title).map(Some.apply)),
-      LineParseFailed(shortLine))
+      LineTooShort(shortLine, 4))
     assert(output == expectedOutput)
   }
 
@@ -101,7 +101,7 @@ class ExcelSheetParserSpec extends FlatSpec {
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
       HeaderLine(List(Account, TransactionDate, ChargeDate, Title, PositiveBalance).map(Some.apply)),
-      ParseSuccess(Transaction("account", someDate, someDate, "title", 1.0, 0.0, None, None).get)
+      ParseSuccess(Transaction("account", someDate, Some(someDate), "title", 1.0, 0.0, None, None).get)
     )
     assert(output == expectedOutput)
   }
@@ -117,7 +117,7 @@ class ExcelSheetParserSpec extends FlatSpec {
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
       HeaderLine(List(Some(Account), Some(TransactionDate), Some(ChargeDate), Some(Title), None, Some(PositiveBalance))),
-      ParseSuccess(Transaction("account", someDate, someDate, "title", 1.0, 0.0, None, None).get)
+      ParseSuccess(Transaction("account", someDate, Some(someDate), "title", 1.0, 0.0, None, None).get)
     )
     assert(output == expectedOutput)
   }
@@ -141,9 +141,9 @@ class ExcelSheetParserSpec extends FlatSpec {
     val output = new ExcelSheetParser(dict).parse(input)
     val expectedOutput = List(
       expectedHeaderLine(goodHeader1, dict),
-      ParseSuccess(Transaction("account1", date, date, "title1", 1.1, 0.0, None, None).get),
+      ParseSuccess(Transaction("account1", date, Some(date), "title1", 1.1, 0.0, None, None).get),
       expectedHeaderLine(goodHeader2, dict),
-      ParseSuccess(Transaction("account2", date, date, "title2", 0.0, 1.1, None, None).get)
+      ParseSuccess(Transaction("account2", date, Some(date), "title2", 0.0, 1.1, None, None).get)
     )
     assert(output == expectedOutput)
   }

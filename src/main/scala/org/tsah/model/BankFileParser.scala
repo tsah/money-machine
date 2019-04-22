@@ -19,9 +19,13 @@ object BankFileParser {
     parseListFromBankStatement(strings, significantLinesStarted = false, List())
 
   def loadFromSavedList(strings: List[Vector[String]]): List[Transaction] = {
-    strings
-      .tail
-      .flatMap(defaultLineToTransaction)
+    if (strings.isEmpty) {
+      Nil
+    } else {
+      strings
+        .tail
+        .flatMap(Transaction.fromCsvLine)
+    }
   }
 
   def defaultLineToTransaction(line: Vector[String]): Option[Transaction] = lineToTransaction(line, Transaction.DefaultDict)
@@ -67,7 +71,7 @@ object BankFileParser {
             case _ =>
               val positiveBalance = optionalPositiveBalance getOrElse 0.0
               val negativeBalance = optionalNegativeBalance getOrElse 0.0
-              Some(Transaction(account, transactionDate, chargeDate, title, positiveBalance, negativeBalance, optionalDetails, optionalAssignedType))
+              Some(Transaction(account, transactionDate, Some(chargeDate), title, positiveBalance, negativeBalance, optionalDetails, optionalAssignedType))
           }
       }
     } match {
@@ -81,8 +85,10 @@ object BankFileParser {
 
     if (optionalTransaction.isEmpty) {
       println(s"Could not parse line: $line")
+      None
+    } else {
+      optionalTransaction.get
     }
-    optionalTransaction.get
   }
 
   def lineToDict(head: Vector[String]): Map[FieldType, Int] =
